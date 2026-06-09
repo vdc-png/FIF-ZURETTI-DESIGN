@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FIF">
+<title>FIF — Zuretti Design</title>
+<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==">
+<link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  const swCode = `
+    const CACHE = 'fif-v2';
+    self.addEventListener('install', e => { self.skipWaiting(); });
+    self.addEventListener('activate', e => { e.waitUntil(self.clients.claim()); });
+    self.addEventListener('fetch', e => {
+      e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).then(res => {
+        return caches.open(CACHE).then(c => { c.put(e.request, res.clone()); return res; });
+      }).catch(() => new Response('Offline', {status: 503}))));
+    });
+  `;
+  const blob = new Blob([swCode], { type: 'application/javascript' });
+  navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(() => {});
+}
+</script>
+<style>
+:root {
+  --navy: #1a3a5c; --navy2: #152d47; --gold: #b8960c; --gold-light: #fdf6e3;
+  --green: #1D9E75; --green-light: #E1F5EE;
+  --red: #C0392B; --red-light: #FDECEA;
+  --amber: #E67E22; --amber-light: #FEF3E2;
+  --gray: #f5f4f1; --border: #e0ddd6; --white: #fff;
+  --text: #1a1a1a; --muted: #888; --radius: 10px;
+  --shadow: 0 2px 12px rgba(26,58,92,0.08);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { font-family: 'Helvetica Neue', sans-serif; background: var(--gray); color: var(--text); min-height: 100vh; overflow-x: hidden; font-size: 14px; }
+
+/* HEADER */
+.app-header { background: var(--navy); color: white; padding: 14px 16px 10px; position: sticky; top: 0; z-index: 200; }
+.header-top { display: flex; align-items: center; justify-content: space-between; }
+.logo-text { font-size: 18px; font-weight: 700; letter-spacing: 5px; }
+.logo-sub { font-size: 7px; letter-spacing: 3px; opacity: 0.5; }
+.header-badge { font-size: 9px; letter-spacing: 2px; background: rgba(255,255,255,0.12); padding: 3px 10px; border-radius: 20px; }
+.progress-steps { display: flex; gap: 3px; margin-top: 10px; }
+.step-dot { flex: 1; height: 3px; border-radius: 2px; transition: background 0.3s; }
+.step-label { font-size: 10px; opacity: 0.65; margin-top: 4px; }
+
+/* SCREENS */
+.screen { display: none; min-height: calc(100vh - 68px); padding-bottom: 80px; }
+.screen.active { display: block; }
+
+/* CARDS */
+.card { background: var(--white); margin: 10px; border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.card-title { background: var(--navy); color: white; padding: 8px 14px; font-size: 9px; letter-spacing: 2px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+
+/* INSPECTION LIST */
+.insp-list { padding: 10px; }
+.insp-item { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 10px; overflow: hidden; cursor: pointer; border: 1.5px solid transparent; transition: border-color 0.15s; }
+.insp-item:active { border-color: var(--navy); }
+.insp-item-header { padding: 12px 14px 8px; display: flex; justify-content: space-between; align-items: flex-start; }
+.insp-code { font-size: 15px; font-weight: 700; letter-spacing: 1px; color: var(--navy); }
+.insp-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.insp-meta { font-size: 11px; color: var(--muted); padding: 0 14px 10px; display: flex; gap: 12px; }
+.status-pill { font-size: 10px; padding: 3px 10px; border-radius: 20px; font-weight: 600; white-space: nowrap; }
+.status-draft { background: #f0ede8; color: var(--muted); }
+.status-ongoing { background: var(--amber-light); color: var(--amber); }
+.status-done { background: var(--green-light); color: var(--green); }
+.status-reinspect { background: var(--red-light); color: var(--red); }
+
+.new-btn { display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--navy); color: white; border: none; border-radius: var(--radius); padding: 14px; font-size: 14px; font-weight: 600; cursor: pointer; margin: 10px; width: calc(100% - 20px); letter-spacing: 1px; }
+.new-btn:active { opacity: 0.85; }
+
+/* FORMS */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; }
+.form-field { padding: 10px 14px; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); }
+.form-field.full { grid-column: 1/-1; border-right: none; }
+.form-field:nth-child(even):not(.full) { border-right: none; }
+.form-field label { font-size: 9px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; display: block; margin-bottom: 4px; }
+.form-field input, .form-field select, .form-field textarea { width: 100%; border: none; outline: none; font-size: 13px; color: var(--text); background: transparent; font-family: inherit; }
+.form-field select { -webkit-appearance: none; }
+
+/* CHECKLIST */
+.check-legend { display: grid; grid-template-columns: 1fr 44px 44px 44px; padding: 5px 14px 3px; border-bottom: 1px solid var(--border); }
+.check-legend span { font-size: 10px; color: var(--muted); text-align: center; }
+.check-legend span:first-child { text-align: left; }
+.check-row { display: grid; grid-template-columns: 1fr 44px 44px 44px; align-items: center; padding: 7px 14px; border-bottom: 1px solid var(--border); position: relative; }
+.check-row.has-nok { background: #fffaf9; }
+.check-text { font-size: 12px; line-height: 1.4; }
+.chk { width: 32px; height: 28px; border-radius: 7px; border: 1px solid var(--border); background: var(--gray); cursor: pointer; display: flex; align-items: center; justify-content: center; margin: 0 auto; font-size: 13px; transition: all 0.12s; user-select: none; }
+.chk:active { transform: scale(0.9); }
+.chk.ok { background: var(--green-light); border-color: var(--green); color: var(--green); }
+.chk.nok { background: var(--red-light); border-color: var(--red); color: var(--red); }
+.chk.na { background: #f0ede8; border-color: #ccc; color: var(--muted); font-size: 9px; font-weight: 600; }
+.nok-detail { background: var(--red-light); border-top: 1px solid #f5c0bc; padding: 8px 14px; display: flex; align-items: flex-start; gap: 8px; }
+.nok-comment-text { font-size: 11px; color: var(--red); flex: 1; line-height: 1.4; }
+.nok-photo-thumb { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; flex-shrink: 0; }
+
+/* POPUP */
+.popup-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 500; display: flex; align-items: flex-end; }
+.popup-overlay.hidden { display: none; }
+.popup-sheet { background: var(--white); border-radius: 16px 16px 0 0; padding: 20px 16px 30px; width: 100%; max-height: 85vh; overflow-y: auto; }
+.popup-title { font-size: 13px; font-weight: 700; color: var(--navy); margin-bottom: 4px; }
+.popup-item { font-size: 11px; color: var(--muted); margin-bottom: 14px; line-height: 1.4; }
+.popup-label { font-size: 9px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; margin-bottom: 5px; }
+.popup-textarea { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 10px; font-size: 13px; resize: none; min-height: 80px; background: var(--gray); color: var(--text); font-family: inherit; outline: none; margin-bottom: 12px; }
+.popup-photo-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.popup-photo-thumb { width: 70px; height: 70px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border); }
+.popup-add-photo { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--green); border: 1px dashed var(--green); border-radius: 8px; padding: 6px 12px; cursor: pointer; background: var(--green-light); }
+.popup-btn-row { display: flex; gap: 8px; }
+.popup-cancel { flex: 1; padding: 12px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--white); font-size: 13px; cursor: pointer; font-family: inherit; }
+.popup-save { flex: 2; padding: 12px; border-radius: var(--radius); border: none; background: var(--red); color: white; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+
+/* CAT TABS */
+.cat-tabs { display: flex; gap: 6px; padding: 8px 10px 4px; overflow-x: auto; scrollbar-width: none; }
+.cat-tabs::-webkit-scrollbar { display: none; }
+.cat-tab { flex-shrink: 0; font-size: 11px; padding: 5px 11px; border-radius: 20px; border: 1px solid var(--border); background: var(--white); color: var(--muted); cursor: pointer; white-space: nowrap; font-family: inherit; }
+.cat-tab.active { background: var(--navy); color: white; border-color: var(--navy); }
+
+/* COMMENTS */
+.cmt-area { padding: 10px 14px; border-top: 1px solid var(--border); }
+.cmt-area label { font-size: 9px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; display: block; margin-bottom: 4px; }
+.cmt-area textarea { width: 100%; border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; font-size: 12px; resize: none; min-height: 52px; background: var(--gray); outline: none; font-family: inherit; }
+
+/* APPROVAL */
+.appr-row { display: flex; gap: 10px; padding: 14px; }
+.appr-btn { flex: 1; padding: 12px; border-radius: var(--radius); border: 1.5px solid var(--border); background: var(--gray); cursor: pointer; text-align: center; font-size: 13px; font-weight: 600; transition: all 0.15s; }
+.appr-btn.ok { background: var(--green-light); border-color: var(--green); color: var(--green); }
+.appr-btn.nok { background: var(--red-light); border-color: var(--red); color: var(--red); }
+
+/* SIGNATURES */
+.sig-wrap { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.sig-name { font-size: 9px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; }
+.sig-canvas-box { position: relative; border: 1px solid var(--border); border-radius: 8px; background: #fafaf8; }
+canvas.sig { width: 100%; height: 100px; display: block; touch-action: none; cursor: crosshair; }
+.sig-clear { position: absolute; top: 5px; right: 8px; font-size: 10px; color: var(--muted); background: white; border: 1px solid var(--border); border-radius: 5px; padding: 2px 7px; cursor: pointer; }
+
+/* HISTORY */
+.history-pass { background: var(--navy2); color: white; padding: 6px 14px; font-size: 9px; letter-spacing: 1px; display: flex; justify-content: space-between; }
+.history-row { display: grid; grid-template-columns: 1fr 44px 44px 44px; align-items: center; padding: 6px 14px; border-bottom: 1px dashed var(--border); opacity: 0.7; }
+.history-row .check-text { font-size: 11px; color: var(--muted); }
+
+/* BOTTOM BAR */
+.bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid var(--border); padding: 10px 14px; display: flex; gap: 8px; z-index: 200; }
+.btn-back { flex: 1; padding: 12px; border-radius: var(--radius); border: 1px solid var(--border); background: white; font-size: 13px; cursor: pointer; font-family: inherit; }
+.btn-fwd { flex: 2; padding: 12px; border-radius: var(--radius); border: none; background: var(--navy); color: white; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.btn-save { flex: 1; padding: 12px; border-radius: var(--radius); border: 1px solid var(--gold); background: var(--gold-light); color: var(--gold); font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.btn-export { flex: 2; padding: 12px; border-radius: var(--radius); border: none; background: var(--gold); color: white; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.btn-back:active, .btn-fwd:active, .btn-save:active, .btn-export:active { opacity: 0.82; }
+
+/* SUMMARY */
+.sum-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border); font-size: 12px; }
+.pills { display: flex; gap: 4px; }
+.pill { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+.pill-ok { background: var(--green-light); color: var(--green); }
+.pill-nok { background: var(--red-light); color: var(--red); }
+.pill-na { background: #f0ede8; color: var(--muted); }
+
+/* TOAST */
+.toast { position: fixed; bottom: 88px; left: 50%; transform: translateX(-50%); background: var(--navy); color: white; padding: 9px 18px; border-radius: 20px; font-size: 12px; z-index: 999; opacity: 0; transition: opacity 0.3s; pointer-events: none; white-space: nowrap; }
+.toast.show { opacity: 1; }
+
+/* EMPTY STATE */
+.empty { text-align: center; padding: 60px 30px; color: var(--muted); }
+.empty-icon { font-size: 48px; margin-bottom: 16px; }
+.empty-title { font-size: 16px; font-weight: 600; color: var(--navy); margin-bottom: 8px; }
+.empty-text { font-size: 13px; line-height: 1.6; }
+
+input[type=file] { display: none; }
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <div class="header-top">
+    <div><div class="logo-text">ZURETTI</div><div class="logo-sub">DESIGN</div></div>
+    <div class="header-badge" id="header-badge">FIF</div>
+  </div>
+  <div class="progress-steps" id="progress-steps"></div>
+  <div class="step-label" id="step-label">Inspections</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- NOK POPUP -->
+<div class="popup-overlay hidden" id="nok-popup">
+  <div class="popup-sheet">
+    <div class="popup-title">Non-conformity</div>
+    <div class="popup-item" id="popup-item-label"></div>
+    <div class="popup-label">Comment *</div>
+    <textarea class="popup-textarea" id="popup-comment" placeholder="Describe the issue..."></textarea>
+    <div class="popup-label">Photo</div>
+    <div class="popup-photo-row" id="popup-photo-row">
+      <label for="popup-photo-input" class="popup-add-photo">📷 Take / add photo</label>
+      <input type="file" id="popup-photo-input" accept="image/*" capture="environment" multiple onchange="handlePopupPhoto(this)">
+    </div>
+    <div class="popup-btn-row">
+      <button class="popup-cancel" onclick="cancelNok()">Cancel</button>
+      <button class="popup-save" onclick="saveNok()">Save non-conformity</button>
+    </div>
+  </div>
+</div>
+
+<!-- S0: INSPECTION LIST -->
+<div class="screen active" id="screen-0">
+  <button class="new-btn" onclick="newInspection()">+ New inspection</button>
+  <div class="insp-list" id="insp-list"></div>
+</div>
+
+<!-- S1: PROJECT INFO -->
+<div class="screen" id="screen-1">
+  <div class="card">
+    <div class="card-title">PROJECT INFORMATION</div>
+    <div class="form-grid">
+      <div class="form-field full"><label>Inspection code *</label><input id="f-icode" type="text" placeholder="VIK-283-SOFA" /></div>
+      <div class="form-field full"><label>Project</label><input id="f-project" type="text" placeholder="VIK" /></div>
+      <div class="form-field"><label>Area</label><input id="f-area" type="text" placeholder="Room 1111" /></div>
+      <div class="form-field"><label>Item code</label><input id="f-code" type="text" placeholder="283" /></div>
+      <div class="form-field"><label>Category</label>
+        <select id="f-cat">
+          <option value="FURNITURE">Furniture</option>
+          <option value="LIGHTING">Lighting</option>
+          <option value="TEXTILE">Textile</option>
+          <option value="STONE">Stone / Marble</option>
+          <option value="HARDWARE">Hardware</option>
+          <option value="JOINERY">Joinery</option>
+          <option value="OTHER">Other</option>
+        </select>
+      </div>
+      <div class="form-field"><label>Quantity</label><input id="f-qty" type="number" placeholder="1" /></div>
+      <div class="form-field full"><label>Description</label><input id="f-desc" type="text" placeholder="Sofa" /></div>
+      <div class="form-field"><label>Date</label><input id="f-date" type="date" /></div>
+      <div class="form-field"><label>Place</label><input id="f-place" type="text" placeholder="Supplier site" /></div>
+      <div class="form-field"><label>Inspector</label><input id="f-inspector" type="text" placeholder="JC / CL" /></div>
+      <div class="form-field"><label>Vendor rep.</label><input id="f-vendor" type="text" placeholder="T-Seigneur" /></div>
+      <div class="form-field full"><label>Owner's rep.</label><input id="f-owner" type="text" placeholder="Patrick GRAAB" /></div>
+    </div>
+  </div>
+  <div class="bottom-bar">
+    <button class="btn-back" onclick="goTo(0)">← Back</button>
+    <button class="btn-save" onclick="saveInspection('ongoing')">Save draft</button>
+    <button class="btn-fwd" onclick="goTo(2)">Checklist →</button>
+  </div>
+</div>
+
+<!-- S2: CHECKLIST -->
+<div class="screen" id="screen-2">
+  <div class="cat-tabs" id="cat-tabs"></div>
+  <div id="checklist-container"></div>
+  <div class="bottom-bar">
+    <button class="btn-back" onclick="goTo(1)">← Back</button>
+    <button class="btn-save" onclick="saveInspection('ongoing')">Save</button>
+    <button class="btn-fwd" onclick="goTo(3)">Approval →</button>
+  </div>
+</div>
+
+<!-- S3: APPROVAL -->
+<div class="screen" id="screen-3">
+  <div class="card">
+    <div class="card-title">APPROVAL</div>
+    <div class="appr-row">
+      <div class="appr-btn" id="appr-ok" onclick="setApproval('ok')">✓ Approved</div>
+      <div class="appr-btn" id="appr-nok" onclick="setApproval('nok')">✗ Not approved</div>
+    </div>
+    <div style="padding:0 14px 14px;">
+      <div style="font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Additional comments</div>
+      <textarea id="appr-comment" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:9px;font-size:12px;resize:none;min-height:65px;background:var(--gray);outline:none;font-family:inherit;" placeholder="Stitching to be made on site..."></textarea>
+    </div>
+    <div id="nok-summary-wrap" style="display:none;padding:0 14px 14px;">
+      <div style="font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">Non-conformities</div>
+      <div id="nok-summary-list" style="font-size:12px;color:var(--red);line-height:1.8;"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">SUMMARY</div>
+    <div id="summary-content"></div>
+  </div>
+  <div class="bottom-bar">
+    <button class="btn-back" onclick="goTo(2)">← Back</button>
+    <button class="btn-save" onclick="saveInspection('ongoing')">Save</button>
+    <button class="btn-fwd" onclick="goTo(4)">Signatures →</button>
+  </div>
+</div>
+
+<!-- S4: SIGNATURES -->
+<div class="screen" id="screen-4">
+  <div class="card">
+    <div class="card-title">SIGNATURES</div>
+    <div class="sig-wrap"><div class="sig-name">Zuretti Design</div><div class="sig-canvas-box"><canvas class="sig" id="sig-zuretti"></canvas><button class="sig-clear" onclick="clearSig('sig-zuretti')">Clear</button></div></div>
+    <div class="sig-wrap"><div class="sig-name">Owner's Representative</div><div class="sig-canvas-box"><canvas class="sig" id="sig-owner"></canvas><button class="sig-clear" onclick="clearSig('sig-owner')">Clear</button></div></div>
+    <div class="sig-wrap" style="border-bottom:none;"><div class="sig-name">Manufacturer</div><div class="sig-canvas-box"><canvas class="sig" id="sig-manufacturer"></canvas><button class="sig-clear" onclick="clearSig('sig-manufacturer')">Clear</button></div></div>
+  </div>
+  <div class="bottom-bar">
+    <button class="btn-back" onclick="goTo(3)">← Back</button>
+    <button class="btn-save" onclick="saveInspection('done')">Mark done</button>
+    <button class="btn-export" onclick="exportPDF()">Export PDF</button>
+  </div>
+</div>
+
+<script>
+// ── DATA ──────────────────────────────────────────────────────────────────────
+const SECTIONS = {
+  FURNITURE: [
+    { id:'appearance', title:'General Appearance', items:['Overall visual inspection (no scratches, dents, or stains)','Custom features present and correctly implemented','Finish is even and consistent','No visible glue marks or tool damage','Symmetry and proportion respected','No sharp edges or protruding hardware'] },
+    { id:'dimensions', title:'Dimensions & Quantities', items:['Overall measurements match the approved plans','Tolerances are respected','Quantities are respected'] },
+    { id:'materials', title:'Compliance of Materials', items:['Wood type as per specifications / approved sample','Metal type as per specifications','Fire-retardant materials used where required','Fixation points as per drawings and specifications'] },
+    { id:'finishes', title:'Quality of Finishes', items:['Gloss / matte level matches the specification','Lacquer / varnish / paint is smooth, even, and dry','No bubbles, dust, or drips in the finish'] },
+    { id:'upholstery', title:'Upholstery', items:['Fabric / leather evenly stretched and neatly attached','No wrinkles, folds, or uneven seams','Stitching is straight, strong, and clean','Cushions are firm and well-filled','Pattern alignment is precise','Comfort is compliant with specifications'] },
+    { id:'functionality', title:'Functionality & Stability', items:['Foam, springs, and padding conform to quality standards','Drawers slide smoothly and close properly','Doors open / close without resistance','Moving parts work smoothly and quietly','No rattling or vibrations','Joints are solid and secure'] },
+    { id:'hardware', title:'Hardware & Accessories', items:['All hardware matches the approved design','Handles, knobs, hinges, and feet are properly installed','Screws are invisible or correctly finished','No rust, scratches, or missing parts'] },
+    { id:'cleaning', title:'Final Cleaning & Presentation', items:['Item is clean and dust-free','Protective packaging looks adequate for delivery','Labeling or certification is present','Ready for client delivery'] },
+  ],
+  LIGHTING: [
+    { id:'appearance', title:'General Appearance', items:['Overall visual inspection (no scratches, dents, or stains)','Custom features present and correctly implemented','Finish is even and consistent','Symmetry and proportion respected'] },
+    { id:'dimensions', title:'Dimensions & Quantities', items:['Overall measurements match the approved plans','Tolerances are respected','Quantities are respected'] },
+    { id:'electrical', title:'Electrical Features', items:['Lights working properly (no flickering, no shadows)','Sockets are as per specifications','All plugs are working','Bulb is supplied','Light source is properly covered (if requested)','Wire access for additional elements is functional','Lampshade does not present any defect','Lampshade does not present shadows','Lampshade has diffusors on top and bottom'] },
+    { id:'cleaning', title:'Final Cleaning & Presentation', items:['Item is clean and dust-free','Protective packaging looks adequate for delivery','Ready for client delivery'] },
+  ],
+  TEXTILE: [
+    { id:'appearance', title:'General Appearance', items:['Overall visual inspection','Custom features present','No visible defects'] },
+    { id:'textile', title:'Textile Quality', items:['Fabric / material is as per approved sample','Color and texture are consistent throughout','No pulls, snags, or weaving defects','Pattern repeat is correct and aligned','Edges and seams are clean and finished','Fire-retardant treatment applied if required'] },
+    { id:'cleaning', title:'Final Cleaning & Presentation', items:['Item is clean and dust-free','Protective packaging looks adequate for delivery','Ready for client delivery'] },
+  ],
+  STONE: [
+    { id:'appearance', title:'General Appearance', items:['Overall visual inspection','Finish is even and consistent','Symmetry and proportion respected'] },
+    { id:'stone', title:'Stone / Marble Quality', items:['Stone type as per specifications / approved sample','Veining and color consistent with selection','No cracks, chips, or inclusions','Surface finish (honed / polished) is correct','Edges are properly finished and protected','Thickness is as per specifications'] },
+    { id:'cleaning', title:'Final Cleaning & Presentation', items:['Item is clean and dust-free','Protective packaging looks adequate for delivery','Ready for client delivery'] },
+  ],
+  HARDWARE: [
+    { id:'appearance', title:'General Appearance', items:['Overall visual inspection (no scratches, dents)','Finish is even and consistent','No visible defects'] },
+    { id:'hardware_q', title:'Hardware Quality', items:['Metal finish matches approved sample','No scratches, dents, or surface defects','Mechanical function works correctly','Dimensions as per specifications','Anti-fingerprint or protective coating present if required'] },
+    { id:'cleaning', title:'Final Cleaning & Presentation', items:['Item is clean and dust-free','Protective packaging looks adequate for delivery','Ready for client delivery'] },
+  ],
+  JOINERY: [
+    { id:'appearance', title:'General Appearance', items:['Overall visual inspection','Finish is even and consistent','Symmetry and proportion respected','No sharp edges or protruding hardware'] },
+    { id:'joinery', title:'Joinery / Millwork', items:['Wood species and grain as per specifications','Veneer is properly selected and applied','Joints are tight, clean, and correctly executed','Panels are flat and free of warping','Lacquer / stain color matches approved sample','Internal fittings are correctly installed'] },
+    { id:'cleaning', title:'Final Cleaning & Presentation', items:['Item is clean and dust-free','Protective packaging looks adequate for delivery','Ready for client delivery'] },
+  ],
+  OTHER: [
+    { id:'appearance', title:'General Appearance', items:['Overall visual inspection (no scratches, dents, or stains)','Custom features present and correctly implemented','Finish is even and consistent','No visible defects'] },
+    { id:'dimensions', title:'Dimensions & Quantities', items:['Overall measurements match the approved plans','Tolerances are respected','Quantities are respected'] },
+    { id:'cleaning', title:'Final Cleaning & Presentation', items:['Item is clean and dust-free','Protective packaging looks adequate for delivery','Ready for client delivery'] },
+  ],
+};
+
+const STEP_LABELS = ['Inspections','Project info','Checklist','Approval','Signatures'];
+const TOTAL_STEPS = 5;
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let inspections = JSON.parse(localStorage.getItem('fif_inspections') || '[]');
+let current = null; // current inspection object
+let currentScreen = 0;
+let activeSec = 0;
+let nokPending = null; // { secId, itemIdx, itemLabel }
+let nokPhotos = []; // base64 photos for current popup
+
+// ── STORAGE ───────────────────────────────────────────────────────────────────
+function saveToStorage() {
+  localStorage.setItem('fif_inspections', JSON.stringify(inspections));
+}
+
+// ── NAVIGATION ────────────────────────────────────────────────────────────────
+function goTo(idx) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + idx).classList.add('active');
+  currentScreen = idx;
+  updateProgress();
+  if (idx === 0) renderList();
+  if (idx === 2) buildChecklist();
+  if (idx === 3) buildSummary();
+  if (idx === 4) { setTimeout(initSigCanvases, 100); }
+  window.scrollTo(0, 0);
+}
+
+function updateProgress() {
+  const wrap = document.getElementById('progress-steps');
+  wrap.innerHTML = '';
+  for (let i = 0; i < TOTAL_STEPS; i++) {
+    const d = document.createElement('div');
+    d.className = 'step-dot';
+    d.style.background = i < currentScreen ? '#b8960c' : i === currentScreen ? 'white' : 'rgba(255,255,255,0.2)';
+    wrap.appendChild(d);
+  }
+  document.getElementById('step-label').textContent = STEP_LABELS[currentScreen];
+  document.getElementById('header-badge').textContent = currentScreen === 0 ? 'FIF' : (current ? current.icode || 'FIF' : 'FIF');
+}
+
+// ── INSPECTION LIST ───────────────────────────────────────────────────────────
+function renderList() {
+  const el = document.getElementById('insp-list');
+  if (inspections.length === 0) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📋</div><div class="empty-title">No inspections yet</div><div class="empty-text">Tap "+ New inspection" to create your first Factory Inspection Form.</div></div>`;
+    return;
+  }
+  el.innerHTML = inspections.slice().reverse().map((ins, ri) => {
+    const i = inspections.length - 1 - ri;
+    const statusClass = { draft:'status-draft', ongoing:'status-ongoing', done:'status-done', reinspect:'status-reinspect' }[ins.status] || 'status-draft';
+    const statusLabel = { draft:'Draft', ongoing:'In progress', done:'Done', reinspect:'To reinspect' }[ins.status] || 'Draft';
+    const nokCount = Object.values(ins.checks || {}).filter(v => v === 'nok').length;
+    return `<div class="insp-item" onclick="openInspection(${i})">
+      <div class="insp-item-header">
+        <div>
+          <div class="insp-code">${ins.icode || '(no code)'}</div>
+          <div class="insp-desc">${ins.desc || ''} ${ins.category ? '— ' + ins.category : ''}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+          <span class="status-pill ${statusClass}">${statusLabel}</span>
+          ${nokCount > 0 ? `<span class="status-pill status-reinspect">✗ ${nokCount} NOK</span>` : ''}
+        </div>
+      </div>
+      <div class="insp-meta">
+        <span>📅 ${ins.date || '—'}</span>
+        <span>🏷 ${ins.project || '—'}</span>
+        <span>📍 ${ins.place || '—'}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function newInspection() {
+  current = {
+    id: Date.now(),
+    icode: '', project: '', area: '', code: '', category: 'FURNITURE', qty: '', desc: '',
+    date: new Date().toISOString().split('T')[0], place: '', inspector: '', vendor: '', owner: '',
+    status: 'draft', checks: {}, nokDetails: {}, comments: {}, approval: null, apprComment: '',
+    passes: [], // array of previous inspection snapshots
+    createdAt: new Date().toISOString(),
+  };
+  inspections.push(current);
+  saveToStorage();
+  loadFormFromCurrent();
+  goTo(1);
+}
+
+function openInspection(idx) {
+  current = inspections[idx];
+  loadFormFromCurrent();
+  goTo(1);
+}
+
+function loadFormFromCurrent() {
+  document.getElementById('f-icode').value = current.icode || '';
+  document.getElementById('f-project').value = current.project || '';
+  document.getElementById('f-area').value = current.area || '';
+  document.getElementById('f-code').value = current.code || '';
+  document.getElementById('f-cat').value = current.category || 'FURNITURE';
+  document.getElementById('f-qty').value = current.qty || '';
+  document.getElementById('f-desc').value = current.desc || '';
+  document.getElementById('f-date').value = current.date || '';
+  document.getElementById('f-place').value = current.place || '';
+  document.getElementById('f-inspector').value = current.inspector || '';
+  document.getElementById('f-vendor').value = current.vendor || '';
+  document.getElementById('f-owner').value = current.owner || '';
+  const apprCmt = document.getElementById('appr-comment');
+  if (apprCmt) apprCmt.value = current.apprComment || '';
+}
+
+function saveFormToCurrent() {
+  if (!current) return;
+  current.icode = document.getElementById('f-icode').value;
+  current.project = document.getElementById('f-project').value;
+  current.area = document.getElementById('f-area').value;
+  current.code = document.getElementById('f-code').value;
+  current.category = document.getElementById('f-cat').value;
+  current.qty = document.getElementById('f-qty').value;
+  current.desc = document.getElementById('f-desc').value;
+  current.date = document.getElementById('f-date').value;
+  current.place = document.getElementById('f-place').value;
+  current.inspector = document.getElementById('f-inspector').value;
+  current.vendor = document.getElementById('f-vendor').value;
+  current.owner = document.getElementById('f-owner').value;
+  current.apprComment = document.getElementById('appr-comment')?.value || '';
+}
+
+function saveInspection(status) {
+  saveFormToCurrent();
+  if (status) current.status = status;
+  current.updatedAt = new Date().toISOString();
+  const idx = inspections.findIndex(i => i.id === current.id);
+  if (idx >= 0) inspections[idx] = current;
+  saveToStorage();
+  showToast('Saved ✓');
+}
+
+// ── CHECKLIST ─────────────────────────────────────────────────────────────────
+function buildChecklist() {
+  const cat = current.category || 'FURNITURE';
+  const sections = SECTIONS[cat] || SECTIONS.FURNITURE;
+  const tabsEl = document.getElementById('cat-tabs');
+  const container = document.getElementById('checklist-container');
+  tabsEl.innerHTML = '';
+  container.innerHTML = '';
+
+  sections.forEach((sec, si) => {
+    const tab = document.createElement('button');
+    tab.className = 'cat-tab' + (si === activeSec ? ' active' : '');
+    tab.textContent = sec.title.split(' ')[0];
+    tab.onclick = () => {
+      activeSec = si;
+      document.querySelectorAll('.cat-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      document.querySelectorAll('.section-block-cl').forEach((b, bi) => {
+        b.style.display = bi === si ? 'block' : 'none';
+      });
+    };
+    tabsEl.appendChild(tab);
+
+    const block = document.createElement('div');
+    block.className = 'card section-block-cl';
+    block.style.display = si === activeSec ? 'block' : 'none';
+
+    // Build previous passes history
+    let historyHtml = '';
+    if (current.passes && current.passes.length > 0) {
+      current.passes.forEach((pass, pi) => {
+        const passChecks = pass.checks || {};
+        historyHtml += `<div class="history-pass"><span>Pass ${pi + 1} — ${pass.date || ''}</span><span style="opacity:0.6">by ${pass.inspector || '—'}</span></div>`;
+        sec.items.forEach((item, ii) => {
+          const v = passChecks[sec.id + '_' + ii];
+          if (!v) return;
+          historyHtml += `<div class="history-row">
+            <div class="check-text">${item}</div>
+            <div style="text-align:center;font-size:13px;color:${v==='ok'?'var(--green)':v==='nok'?'var(--red)':'var(--muted)'};">${v==='ok'?'✓':v==='nok'?'✗':'N/A'}</div>
+            <div></div><div></div>
+          </div>`;
+        });
+      });
+    }
+
+    let itemsHtml = sec.items.map((item, ii) => {
+      const key = sec.id + '_' + ii;
+      const val = current.checks[key];
+      const nokD = current.nokDetails[key];
+      const nokDetailHtml = nokD ? `<div class="nok-detail">
+        <div class="nok-comment-text">↳ ${nokD.comment || '(no comment)'}</div>
+        ${nokD.photos && nokD.photos[0] ? `<img class="nok-photo-thumb" src="${nokD.photos[0]}" />` : ''}
+      </div>` : '';
+      return `<div>
+        <div class="check-row ${val==='nok'?'has-nok':''}">
+          <div class="check-text">${item}</div>
+          <div class="chk ${val==='ok'?'ok':''}" onclick="setCheck('${sec.id}','${key}','ok')" id="chk-${key}-ok">✓</div>
+          <div class="chk ${val==='nok'?'nok':''}" onclick="setCheck('${sec.id}','${key}','nok')" id="chk-${key}-nok">✗</div>
+          <div class="chk ${val==='na'?'na':''}" onclick="setCheck('${sec.id}','${key}','na')" id="chk-${key}-na">N/A</div>
+        </div>
+        <div id="nok-detail-${key}">${nokDetailHtml}</div>
+      </div>`;
+    }).join('');
+
+    block.innerHTML = `
+      <div class="card-title">${sec.title.toUpperCase()}<span style="opacity:0.7;font-size:10px;" id="score-${sec.id}"></span></div>
+      ${historyHtml}
+      <div class="check-legend"><span>Item</span><span style="color:var(--green)">✓</span><span style="color:var(--red)">✗</span><span>N/A</span></div>
+      ${itemsHtml}
+      <div class="cmt-area">
+        <label>Section comments</label>
+        <textarea id="cmt-${sec.id}" placeholder="General notes for this section...">${current.comments[sec.id]||''}</textarea>
+      </div>`;
+
+    container.appendChild(block);
+    updateScore(sec);
+
+    // Bind comment save
+    const cmt = document.getElementById('cmt-' + sec.id);
+    if (cmt) cmt.addEventListener('change', () => { current.comments[sec.id] = cmt.value; });
+  });
+}
+
+function updateScore(sec) {
+  const el = document.getElementById('score-' + sec.id);
+  if (!el) return;
+  let ok = 0, nok = 0, na = 0;
+  sec.items.forEach((_, ii) => {
+    const v = current.checks[sec.id + '_' + ii];
+    if (v === 'ok') ok++; else if (v === 'nok') nok++; else if (v === 'na') na++;
+  });
+  el.textContent = `${ok+nok+na}/${sec.items.length}`;
+}
+
+function setCheck(secId, key, val) {
+  if (current.checks[key] === val) {
+    current.checks[key] = null;
+    delete current.nokDetails[key];
+  } else {
+    current.checks[key] = val;
+    if (val === 'nok') {
+      // Get item label
+      const cat = current.category || 'FURNITURE';
+      const sec = (SECTIONS[cat] || SECTIONS.FURNITURE).find(s => s.id === secId);
+      const ii = parseInt(key.split('_').pop());
+      const itemLabel = sec ? sec.items[ii] : key;
+      openNokPopup(secId, key, itemLabel);
+    } else {
+      delete current.nokDetails[key];
+    }
+  }
+  // Update UI
+  ['ok','nok','na'].forEach(v => {
+    const btn = document.getElementById('chk-' + key + '-' + v);
+    if (btn) btn.className = 'chk' + (v === (current.checks[key] || '') ? ' ' + v : '');
+  });
+  // Update NOK detail row
+  const detailEl = document.getElementById('nok-detail-' + key);
+  if (detailEl && current.checks[key] !== 'nok') detailEl.innerHTML = '';
+  // Update row bg
+  const row = document.querySelector(`[onclick*="'${key}','ok'"]`)?.closest('.check-row');
+  if (row) row.className = 'check-row' + (current.checks[key] === 'nok' ? ' has-nok' : '');
+  // Score
+  const cat = current.category || 'FURNITURE';
+  const sec = (SECTIONS[cat] || SECTIONS.FURNITURE).find(s => s.id === secId);
+  if (sec) updateScore(sec);
+}
+
+// ── NOK POPUP ─────────────────────────────────────────────────────────────────
+function openNokPopup(secId, key, itemLabel) {
+  nokPending = { secId, key, itemLabel };
+  nokPhotos = (current.nokDetails[key]?.photos || []).slice();
+  document.getElementById('popup-item-label').textContent = itemLabel;
+  document.getElementById('popup-comment').value = current.nokDetails[key]?.comment || '';
+  renderPopupPhotos();
+  document.getElementById('nok-popup').classList.remove('hidden');
+}
+
+function renderPopupPhotos() {
+  const row = document.getElementById('popup-photo-row');
+  // Keep add button, remove old thumbs
+  const thumbs = row.querySelectorAll('.popup-photo-thumb');
+  thumbs.forEach(t => t.remove());
+  nokPhotos.forEach(src => {
+    const img = document.createElement('img');
+    img.className = 'popup-photo-thumb';
+    img.src = src;
+    row.insertBefore(img, row.querySelector('.popup-add-photo'));
+  });
+}
+
+function handlePopupPhoto(input) {
+  Array.from(input.files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => { nokPhotos.push(e.target.result); renderPopupPhotos(); };
+    reader.readAsDataURL(file);
+  });
+}
+
+function saveNok() {
+  if (!nokPending) return;
+  const comment = document.getElementById('popup-comment').value;
+  current.nokDetails[nokPending.key] = { comment, photos: nokPhotos.slice() };
+  // Update detail row
+  const detailEl = document.getElementById('nok-detail-' + nokPending.key);
+  if (detailEl) {
+    const d = current.nokDetails[nokPending.key];
+    detailEl.innerHTML = `<div class="nok-detail">
+      <div class="nok-comment-text">↳ ${d.comment || '(no comment)'}</div>
+      ${d.photos && d.photos[0] ? `<img class="nok-photo-thumb" src="${d.photos[0]}" />` : ''}
+    </div>`;
+  }
+  document.getElementById('nok-popup').classList.add('hidden');
+  nokPending = null;
+  nokPhotos = [];
+}
+
+function cancelNok() {
+  // Revert check to null
+  if (nokPending) {
+    current.checks[nokPending.key] = null;
+    ['ok','nok','na'].forEach(v => {
+      const btn = document.getElementById('chk-' + nokPending.key + '-' + v);
+      if (btn) btn.className = 'chk';
+    });
+  }
+  document.getElementById('nok-popup').classList.add('hidden');
+  nokPending = null;
+  nokPhotos = [];
+}
+
+// ── APPROVAL & SUMMARY ────────────────────────────────────────────────────────
+function setApproval(val) {
+  current.approval = current.approval === val ? null : val;
+  document.getElementById('appr-ok').className = 'appr-btn' + (current.approval === 'ok' ? ' ok' : '');
+  document.getElementById('appr-nok').className = 'appr-btn' + (current.approval === 'nok' ? ' nok' : '');
+}
+
+function buildSummary() {
+  const cat = current.category || 'FURNITURE';
+  const sections = SECTIONS[cat] || SECTIONS.FURNITURE;
+  const el = document.getElementById('summary-content');
+  let html = '';
+  let allNok = [];
+  sections.forEach(sec => {
+    let ok = 0, nok = 0, na = 0;
+    sec.items.forEach((item, ii) => {
+      const v = current.checks[sec.id + '_' + ii];
+      if (v === 'ok') ok++; else if (v === 'nok') { nok++; allNok.push(item); }
+      else if (v === 'na') na++;
+    });
+    html += `<div class="sum-row"><span style="max-width:175px;line-height:1.4;">${sec.title}</span><div class="pills">
+      ${ok?`<span class="pill pill-ok">✓ ${ok}</span>`:''}
+      ${nok?`<span class="pill pill-nok">✗ ${nok}</span>`:''}
+      ${na?`<span class="pill pill-na">N/A ${na}</span>`:''}
+    </div></div>`;
+  });
+  el.innerHTML = html;
+  // Load approval state
+  document.getElementById('appr-ok').className = 'appr-btn' + (current.approval === 'ok' ? ' ok' : '');
+  document.getElementById('appr-nok').className = 'appr-btn' + (current.approval === 'nok' ? ' nok' : '');
+  document.getElementById('appr-comment').value = current.apprComment || '';
+  // NOK list
+  const nokWrap = document.getElementById('nok-summary-wrap');
+  if (allNok.length > 0) {
+    nokWrap.style.display = 'block';
+    document.getElementById('nok-summary-list').innerHTML = allNok.map(n => '— ' + n).join('<br>');
+  } else {
+    nokWrap.style.display = 'none';
+  }
+}
+
+// ── SIGNATURES ────────────────────────────────────────────────────────────────
+function initSigCanvases() {
+  ['sig-zuretti','sig-owner','sig-manufacturer'].forEach(id => {
+    const canvas = document.getElementById(id);
+    if (!canvas) return;
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width * (window.devicePixelRatio || 1);
+    canvas.height = 100 * (window.devicePixelRatio || 1);
+    const ctx = canvas.getContext('2d');
+    ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+    ctx.strokeStyle = '#1a3a5c'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    let drawing = false, lx = 0, ly = 0;
+    function pos(e) { const r = canvas.getBoundingClientRect(); const s = e.touches ? e.touches[0] : e; return [s.clientX - r.left, s.clientY - r.top]; }
+    canvas.onmousedown = canvas.ontouchstart = e => { e.preventDefault(); drawing = true; [lx, ly] = pos(e); };
+    canvas.onmousemove = canvas.ontouchmove = e => { if (!drawing) return; e.preventDefault(); const [x, y] = pos(e); ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(x, y); ctx.stroke(); [lx, ly] = [x, y]; };
+    canvas.onmouseup = canvas.ontouchend = canvas.onmouseleave = () => drawing = false;
+  });
+}
+
+function clearSig(id) {
+  const canvas = document.getElementById(id);
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+// ── PDF EXPORT ────────────────────────────────────────────────────────────────
+function exportPDF() {
+  saveFormToCurrent();
+  showToast('Generating PDF…');
+  setTimeout(() => {
+    try {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit:'mm', format:'a4', orientation:'portrait' });
+      const W = 210, M = 14;
+      let y = 0;
+      function addPage() { doc.addPage(); y = 16; }
+      function checkY(n) { if (y + n > 280) addPage(); }
+      function setNavy() { doc.setTextColor(26,58,92); }
+      function setWhite() { doc.setTextColor(255,255,255); }
+      function setDark() { doc.setTextColor(26,26,26); }
+      function setMuted() { doc.setTextColor(136,136,136); }
+      function setGreen() { doc.setTextColor(29,158,117); }
+      function setRed() { doc.setTextColor(192,57,43); }
+
+      // Header
+      doc.setFillColor(26,58,92); doc.rect(0,0,W,26,'F');
+      setWhite(); doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.setCharSpace(4);
+      doc.text('ZURETTI', M, 11); doc.setCharSpace(0);
+      doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.text('design', M, 16);
+      doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setCharSpace(2);
+      doc.text('FIF', W-M-10, 11); doc.setCharSpace(0);
+      doc.setFontSize(6.5); doc.setFont('helvetica','normal');
+      doc.text('Factory Inspection Form', W-M-38, 16);
+      y = 33;
+
+      // Meta
+      const fields = [
+        ['CODE',current.icode],['PROJECT',current.project],['AREA',current.area],
+        ['ITEM CODE',current.code],['CATEGORY',current.category],['QTY',current.qty],
+        ['DESCRIPTION',current.desc],['DATE',current.date],['INSPECTOR',current.inspector],
+        ['VENDOR REP.',current.vendor],["OWNER'S REP.",current.owner],['PLACE',current.place]
+      ];
+      doc.setFillColor(248,247,244); doc.roundedRect(M,y,W-M*2,50,2,2,'F');
+      doc.setDrawColor(224,221,214); doc.setLineWidth(0.3); doc.roundedRect(M,y,W-M*2,50,2,2,'S');
+      const cW = (W-M*2-8)/3; let fx = M+4, fy = y+7;
+      fields.forEach((f,i) => {
+        const col = i%3, row = Math.floor(i/3);
+        setMuted(); doc.setFontSize(6.5); doc.setFont('helvetica','normal');
+        doc.text(f[0]||'', fx+col*cW, fy+row*12);
+        setDark(); doc.setFontSize(9); doc.setFont('helvetica','bold');
+        doc.text(String(f[1]||'—'), fx+col*cW, fy+row*12+5);
+      });
+      y += 58;
+
+      // Sections
+      const cat = current.category || 'FURNITURE';
+      const sections = SECTIONS[cat] || SECTIONS.FURNITURE;
+      sections.forEach(sec => {
+        checkY(20);
+        doc.setFillColor(26,58,92); doc.rect(M,y,W-M*2,7,'F');
+        setWhite(); doc.setFontSize(7.5); doc.setFont('helvetica','bold'); doc.setCharSpace(1);
+        doc.text(sec.title.toUpperCase(), M+4, y+5); doc.setCharSpace(0);
+        y += 9;
+        setMuted(); doc.setFontSize(7); doc.setFont('helvetica','normal');
+        doc.text('Item', M+4, y+3.5);
+        doc.text('✓', M+130, y+3.5); doc.text('✗', M+146, y+3.5); doc.text('N/A', M+158, y+3.5);
+        doc.setDrawColor(224,221,214); doc.setLineWidth(0.2); doc.line(M,y+5.5,W-M,y+5.5);
+        y += 7;
+        sec.items.forEach((item, ii) => {
+          const key = sec.id+'_'+ii;
+          const val = current.checks[key];
+          const nokD = current.nokDetails[key];
+          checkY(9);
+          setDark(); doc.setFontSize(8); doc.setFont('helvetica','normal');
+          const lines = doc.splitTextToSize(item, 112);
+          doc.text(lines, M+4, y+3.5);
+          const rH = lines.length*4.5+1;
+          [['ok',M+127],['nok',M+143],['na',M+156]].forEach(([v,bx]) => {
+            const by=y+0.5, bs=5.5;
+            if(val===v){
+              if(v==='ok') doc.setFillColor(225,245,238);
+              else if(v==='nok') doc.setFillColor(252,235,234);
+              else doc.setFillColor(240,237,232);
+              doc.roundedRect(bx,by,bs,bs,1,1,'F');
+            }
+            doc.setDrawColor(200,197,190); doc.setLineWidth(0.3); doc.roundedRect(bx,by,bs,bs,1,1,'S');
+            if(val===v){
+              if(v==='ok'){setGreen();doc.setFontSize(8);doc.text('✓',bx+1,by+4.5);}
+              else if(v==='nok'){setRed();doc.setFontSize(8);doc.text('✗',bx+1,by+4.5);}
+              else{setMuted();doc.setFontSize(6);doc.text('N/A',bx+0.3,by+4.2);}
+            }
+          });
+          doc.setDrawColor(224,221,214); doc.setLineWidth(0.15); doc.line(M,y+rH,W-M,y+rH);
+          y += rH+0.5;
+          // NOK detail
+          if (val === 'nok' && nokD) {
+            checkY(8);
+            doc.setFillColor(252,235,234); doc.roundedRect(M,y,W-M*2,8,1,1,'F');
+            setRed(); doc.setFontSize(7); doc.setFont('helvetica','italic');
+            const cLines = doc.splitTextToSize('↳ ' + (nokD.comment||''), W-M*2-8);
+            doc.text(cLines, M+4, y+4.5);
+            y += cLines.length*4+4;
+          }
+        });
+        const cmt = current.comments[sec.id];
+        if (cmt) {
+          checkY(10);
+          doc.setFillColor(253,246,227); doc.roundedRect(M,y,W-M*2,9,1,1,'F');
+          doc.setTextColor(184,150,12); doc.setFontSize(7); doc.setFont('helvetica','italic');
+          const cl = doc.splitTextToSize(cmt, W-M*2-8); doc.text(cl, M+4, y+5);
+          y += cl.length*4+4;
+        }
+        y += 4;
+      });
+
+      // Approval
+      checkY(24);
+      doc.setFillColor(26,58,92); doc.rect(M,y,W-M*2,7,'F');
+      setWhite(); doc.setFontSize(7.5); doc.setFont('helvetica','bold'); doc.setCharSpace(1);
+      doc.text('APPROVAL', M+4, y+5); doc.setCharSpace(0); y += 10;
+      if (current.approval === 'ok') {
+        doc.setFillColor(225,245,238); doc.roundedRect(M,y,60,8,2,2,'F');
+        setGreen(); doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.text('✓  ITEM APPROVED', M+4, y+5.5);
+      } else if (current.approval === 'nok') {
+        doc.setFillColor(252,235,234); doc.roundedRect(M,y,60,8,2,2,'F');
+        setRed(); doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.text('✗  NOT APPROVED', M+4, y+5.5);
+      }
+      y += 12;
+      const ac = current.apprComment || document.getElementById('appr-comment')?.value || '';
+      if (ac) {
+        doc.setFillColor(248,247,244); doc.roundedRect(M,y,W-M*2,10,1,1,'F');
+        setDark(); doc.setFontSize(8); doc.setFont('helvetica','italic');
+        const acL = doc.splitTextToSize(ac, W-M*2-8); doc.text(acL, M+4, y+5); y += acL.length*4.5+5;
+      }
+      y += 4;
+
+      // Signatures
+      checkY(42);
+      doc.setFillColor(26,58,92); doc.rect(M,y,W-M*2,7,'F');
+      setWhite(); doc.setFontSize(7.5); doc.setFont('helvetica','bold'); doc.setCharSpace(1);
+      doc.text('SIGNATURES', M+4, y+5); doc.setCharSpace(0); y += 10;
+      const sigs = ['sig-zuretti','sig-owner','sig-manufacturer'];
+      const sigLabels = ['ZURETTI DESIGN',"OWNER'S REP.",'MANUFACTURER'];
+      const sW = (W-M*2-8)/3;
+      sigs.forEach((id, i) => {
+        const sx = M + i*(sW+4);
+        setMuted(); doc.setFontSize(7); doc.text(sigLabels[i], sx, y);
+        doc.setDrawColor(200,197,190); doc.setLineWidth(0.3); doc.roundedRect(sx,y+2,sW,22,1,1,'S');
+        try { const c = document.getElementById(id); if(c) doc.addImage(c.toDataURL('image/png'),'PNG',sx+1,y+3,sW-2,20); } catch(e){}
+      });
+      y += 30;
+
+      // Footer
+      const total = doc.internal.getNumberOfPages();
+      for (let p = 1; p <= total; p++) {
+        doc.setPage(p);
+        doc.setFillColor(26,58,92); doc.rect(0,290,W,7,'F');
+        setWhite(); doc.setFontSize(6.5); doc.setFont('helvetica','normal');
+        doc.text('ZURETTI DESIGN — FIF', M, 294.5);
+        doc.text((current.icode||'') + (current.date?' | '+current.date:''), W/2, 294.5, {align:'center'});
+        doc.text('Page '+p+' / '+total, W-M, 294.5, {align:'right'});
+      }
+
+      doc.save(`FIF_${current.icode||'report'}_${current.date||''}.pdf`);
+      saveInspection('done');
+      showToast('PDF exported ✓');
+    } catch(e) { showToast('Error: ' + e.message); }
+  }, 100);
+}
+
+// ── UTILS ─────────────────────────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+updateProgress();
+renderList();
+</script>
+</body>
+</html>
